@@ -17,10 +17,10 @@ fn main() {
         // Wait for user input
         io::stdin().read_line(&mut input).unwrap();
         let args: Vec<&str> = input.split_whitespace().collect();
-        if args[0] == "exit" {
-            process::exit(args[1].parse::<i32>().unwrap());
-        } else {
-            println!("{}: command not found", input.trim());
+        match args[0] {
+            "exit" => process::exit(args[1].parse::<i32>().unwrap()),
+            "echo" => println!("{}", input.trim().strip_prefix("echo ").unwrap()),
+            _ => println!("{}: command not found", input.trim()),
         }
     }
 }
