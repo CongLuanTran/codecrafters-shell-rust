@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::process;
 
 fn main() {
     // Declare a variable to hold user input
@@ -15,6 +16,11 @@ fn main() {
 
         // Wait for user input
         io::stdin().read_line(&mut input).unwrap();
-        println!("{}: command not found", input.trim());
+        let args: Vec<&str> = input.split_whitespace().collect();
+        if args[0] == "exit" {
+            process::exit(args[1].parse::<i32>().unwrap());
+        } else {
+            println!("{}: command not found", input.trim());
+        }
     }
 }
