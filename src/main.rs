@@ -2,10 +2,26 @@
 use std::io::{self, Write};
 use std::process;
 
+fn echo(input: &str) {
+    println!("{}", input.trim());
+}
+
+fn exit(code: i32) {
+    process::exit(code);
+}
+
+fn type_of(cmd: &str) {
+    let builtin = ["exit", "echo", "type"];
+    if builtin.contains(&cmd) {
+        println!("{} is a shell builtin", cmd);
+    } else {
+        println!("{}: not found", cmd);
+    }
+}
+
 fn main() {
     // Declare a variable to hold user input
     let mut input = String::new();
-    let builtin = ["exit", "echo", "type"];
 
     loop {
         // Print the prompt
@@ -17,18 +33,16 @@ fn main() {
 
         // Wait for user input
         io::stdin().read_line(&mut input).unwrap();
-        let args: Vec<&str> = input.split_whitespace().collect();
-        match args[0] {
-            "exit" => process::exit(args[1].parse::<i32>().unwrap()),
-            "echo" => println!("{}", input.trim().strip_prefix("echo ").unwrap()),
-            "type" => {
-                if builtin.contains(&args[1]) {
-                    println!("{} is a shell builtin", args[1]);
-                } else {
-                    println!("{}: not found", args[1]);
-                }
-            }
-            _ => println!("{}: command not found", input.trim()),
-        }
+        let parts: Vec<&str> = input.split_whitespace().collect();
+        match parts.as_slice() {
+            [] => {}
+            [cmd] => println!("{}: command not found", cmd),
+            [cmd, args @ ..] => match *cmd {
+                "echo" => echo(&args.join(" ")),
+                "exit" => exit(args[0].parse::<i32>().unwrap()),
+                "type" => type_of(args[0]),
+                _ => println!("{}: command not found", cmd),
+            },
+        };
     }
 }
