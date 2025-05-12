@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
-use std::process;
+use std::{env, process};
 
 fn echo(input: &str) {
     println!("{}", input.trim());
@@ -11,10 +11,19 @@ fn exit(code: i32) {
 }
 
 fn type_of(cmd: &str) {
-    let builtin = ["exit", "echo", "type"];
+    let builtin = ["echo", "type", "exit"];
     if builtin.contains(&cmd) {
         println!("{} is a shell builtin", cmd);
     } else {
+        let path_var = env::var("PATH").unwrap_or_default();
+        let path_dirs = env::split_paths(&path_var);
+        for dir in path_dirs {
+            let full_path = dir.join(cmd);
+            if full_path.is_file() {
+                println!("{} is {}", cmd, full_path.display());
+                return;
+            }
+        }
         println!("{}: not found", cmd);
     }
 }
