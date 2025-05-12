@@ -2,6 +2,8 @@
 use std::io::{self, Write};
 use std::{env, process};
 
+use is_executable::IsExecutable;
+
 fn echo(input: &str) {
     println!("{}", input.trim());
 }
@@ -19,7 +21,7 @@ fn type_of(cmd: &str) {
         let path_dirs = env::split_paths(&path_var);
         for dir in path_dirs {
             let full_path = dir.join(cmd);
-            if full_path.is_file() {
+            if full_path.is_file() && full_path.is_executable() {
                 println!("{} is {}", cmd, full_path.display());
                 return;
             }
