@@ -91,7 +91,7 @@ impl Shell {
     fn execute(&self, cmd: &str, args: &[&str]) {
         match self.find_executable(cmd) {
             None => println!("{}: command not found", cmd),
-            Some(cmd) => {
+            Some(_) => {
                 Command::new(cmd)
                     .args(args)
                     .status()
