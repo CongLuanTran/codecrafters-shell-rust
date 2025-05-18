@@ -87,7 +87,7 @@ impl Shell {
             Some(cmd) => {
                 Command::new(cmd)
                     .args(args)
-                    .output()
+                    .status()
                     .expect("failed to execute process");
             }
         }
