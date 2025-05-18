@@ -121,7 +121,7 @@ impl Shell {
 
         let path = PathBuf::from(args[0]);
         if env::set_current_dir(&path).is_err() {
-            eprintln!("cd: {}: no such file or directory", path.display());
+            eprintln!("cd: {}: No such file or directory", path.display());
         }
     }
 }
