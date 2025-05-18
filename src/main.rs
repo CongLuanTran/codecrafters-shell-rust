@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::{
     env::{self},
     path::PathBuf,
-    process,
+    process::{self, Command},
 };
 
 use is_executable::IsExecutable;
@@ -46,6 +46,7 @@ impl Shell {
                     "exit" => Shell::exit(args[0].parse::<i32>().unwrap()),
                     "type" => self.type_of(args[0]),
                     _ => println!("{}: command not found", cmd),
+                    _ => self.execute(cmd, args),
                 },
             };
         }
@@ -76,6 +77,18 @@ impl Shell {
             match self.find_executable(cmd) {
                 Some(path) => println!("{} is {}", cmd, path.display()),
                 None => println!("{}: not found", cmd),
+            }
+        }
+    }
+
+    fn execute(&self, cmd: &str, args: &[&str]) {
+        match self.find_executable(cmd) {
+            None => println!("{}: command not found", cmd),
+            Some(cmd) => {
+                Command::new(cmd)
+                    .args(args)
+                    .output()
+                    .expect("failed to execute process");
             }
         }
     }
