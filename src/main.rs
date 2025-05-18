@@ -119,6 +119,16 @@ impl Shell {
             eprintln!("cd: too many arguments");
         }
 
+        if args[0] == "~" {
+            let home = env::var("HOME");
+            if let Ok(home) = home {
+                if env::set_current_dir(&home).is_err() {
+                    eprintln!("cd: {}: No such file or directory", home);
+                }
+            }
+            return;
+        }
+
         let path = PathBuf::from(args[0]);
         if env::set_current_dir(&path).is_err() {
             eprintln!("cd: {}: No such file or directory", path.display());
