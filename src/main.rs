@@ -17,7 +17,7 @@ struct Shell {
 impl Shell {
     fn new() -> Self {
         let input = String::new();
-        let builtin = vec!["echo", "type", "exit"];
+        let builtin = vec!["echo", "type", "exit", "pwd"];
         let path_var = env::var("PATH").unwrap_or_default();
         let path_dirs = env::split_paths(&path_var).collect();
         Shell {
@@ -44,6 +44,7 @@ impl Shell {
                     "echo" => Shell::echo(args),
                     "exit" => Shell::exit(args),
                     "type" => self.type_of(args),
+                    "pwd" => Shell::pwd(),
                     _ => self.execute(cmd, args),
                 },
             };
@@ -97,6 +98,13 @@ impl Shell {
                     .status()
                     .expect("failed to execute process");
             }
+        }
+    }
+
+    fn pwd() {
+        match env::current_dir() {
+            Ok(path) => println!("{}", path.display()),
+            Err(e) => eprintln!("pwd: {}", e),
         }
     }
 }
