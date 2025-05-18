@@ -17,7 +17,7 @@ struct Shell {
 impl Shell {
     fn new() -> Self {
         let input = String::new();
-        let builtin = vec!["echo", "type", "exit", "pwd"];
+        let builtin = vec!["echo", "type", "exit", "pwd", "cd"];
         let path_var = env::var("PATH").unwrap_or_default();
         let path_dirs = env::split_paths(&path_var).collect();
         Shell {
@@ -45,6 +45,7 @@ impl Shell {
                     "exit" => Shell::exit(args),
                     "type" => self.type_of(args),
                     "pwd" => Shell::pwd(),
+                    "cd" => Shell::cd(args),
                     _ => self.execute(cmd, args),
                 },
             };
@@ -105,6 +106,22 @@ impl Shell {
         match env::current_dir() {
             Ok(path) => println!("{}", path.display()),
             Err(e) => eprintln!("pwd: {}", e),
+        }
+    }
+
+    fn cd(args: &[&str]) {
+        if args.is_empty() {
+            eprintln!("cd: missing argument");
+            return;
+        }
+
+        if args.len() > 1 {
+            eprintln!("cd: too many arguments");
+        }
+
+        let path = PathBuf::from(args[0]);
+        if env::set_current_dir(&path).is_err() {
+            eprintln!("cd: {}: no such file or directory", path.display());
         }
     }
 }
