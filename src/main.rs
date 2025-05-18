@@ -40,12 +40,10 @@ impl Shell {
             let parts: Vec<&str> = self.input.split_whitespace().collect();
             match parts.as_slice() {
                 [] => {}
-                [cmd] => println!("{}: command not found", cmd),
                 [cmd, args @ ..] => match *cmd {
-                    "echo" => Shell::echo(&args.join(" ")),
-                    "exit" => Shell::exit(args[0].parse::<i32>().unwrap()),
-                    "type" => self.type_of(args[0]),
-                    _ => println!("{}: command not found", cmd),
+                    "echo" => Shell::echo(args),
+                    "exit" => Shell::exit(args),
+                    "type" => self.type_of(args),
                     _ => self.execute(cmd, args),
                 },
             };
@@ -62,15 +60,24 @@ impl Shell {
         None
     }
 
-    fn echo(input: &str) {
-        println!("{}", input.trim());
+    fn echo(args: &[&str]) {
+        println!("{}", args.join(" ").trim());
     }
 
-    fn exit(code: i32) {
-        process::exit(code);
+    fn exit(args: &[&str]) {
+        if args.is_empty() {
+            eprintln!("exit: missing exit code");
+            return;
+        }
+
+        match args[0].parse() {
+            Ok(code) => process::exit(code),
+            Err(_) => eprintln!("exit: numeric argument required"),
+        }
     }
 
-    fn type_of(&self, cmd: &str) {
+    fn type_of(&self, args: &[&str]) {
+        let cmd = args[0];
         if self.builtin.contains(&cmd) {
             println!("{} is a shell builtin", cmd);
         } else {
