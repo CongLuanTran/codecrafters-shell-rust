@@ -111,28 +111,34 @@ impl Shell {
 
     fn cd(args: &[&str]) {
         if args.is_empty() {
-            eprintln!("cd: missing argument");
-            return;
-        }
-
-        if args.len() > 1 {
-            eprintln!("cd: too many arguments");
-        }
-
-        if args[0] == "~" {
             let home = env::var("HOME");
             if let Ok(home) = home {
                 if env::set_current_dir(&home).is_err() {
                     eprintln!("cd: {}: No such file or directory", home);
                 }
+            } else {
+                eprintln!("cd: HOME not set");
             }
+        }
+
+        if args.len() > 1 {
+            eprintln!("cd: too many arguments");
             return;
         }
 
-        let path = PathBuf::from(args[0]);
+        let path = PathBuf::from(expand_tilde(args[0]));
         if env::set_current_dir(&path).is_err() {
             eprintln!("cd: {}: No such file or directory", path.display());
         }
+    }
+}
+
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with('~') {
+        let home = env::var("HOME").unwrap_or_default();
+        format!("{}{}", home, &path.strip_prefix('~').unwrap_or_default())
+    } else {
+        path.to_string()
     }
 }
 
