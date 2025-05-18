@@ -37,22 +37,30 @@ impl Shell {
             self.input.clear();
             // Wait for user input
             io::stdin().read_line(&mut self.input).unwrap();
-            let parts: Vec<&str> = self.input.split_whitespace().collect();
-            match parts.as_slice() {
-                [] => {}
-                [cmd, args @ ..] => match *cmd {
-                    "echo" => Shell::echo(args),
-                    "exit" => Shell::exit(args),
-                    "type" => self.type_of(args),
-                    "pwd" => Shell::pwd(),
-                    "cd" => Shell::cd(args),
-                    _ => self.execute(cmd, args),
-                },
+            let parts = self.input.split_once(" ");
+            let (cmd, args) = match parts {
+                None => (self.input.as_str(), None),
+                Some((cmd, args)) => {
+                    let args = args.trim();
+                    let args = parse_args(args);
+                    (cmd, Some(args))
+                }
             };
+
+            let cmd = cmd.trim();
+            let args = &args.unwrap_or_default();
+            match cmd {
+                "echo" => Shell::echo(args),
+                "exit" => Shell::exit(args),
+                "type" => self.type_of(args),
+                "pwd" => Shell::pwd(),
+                "cd" => Shell::cd(args),
+                _ => self.execute(cmd, args),
+            }
         }
     }
 
-    fn find_executable(&self, cmd: &str) -> Option<PathBuf> {
+    fn find_executable(&self, cmd: &String) -> Option<PathBuf> {
         for dir in &self.path_dirs {
             let full_path = dir.join(cmd);
             if full_path.is_file() && full_path.is_executable() {
@@ -62,11 +70,11 @@ impl Shell {
         None
     }
 
-    fn echo(args: &[&str]) {
+    fn echo(args: &[String]) {
         println!("{}", args.join(" ").trim());
     }
 
-    fn exit(args: &[&str]) {
+    fn exit(args: &[String]) {
         if args.is_empty() {
             eprintln!("exit: missing exit code");
             return;
@@ -78,9 +86,9 @@ impl Shell {
         }
     }
 
-    fn type_of(&self, args: &[&str]) {
-        let cmd = args[0];
-        if self.builtin.contains(&cmd) {
+    fn type_of(&self, args: &[String]) {
+        let cmd = &args[0];
+        if self.builtin.iter().any(|&builtin| builtin == cmd) {
             println!("{} is a shell builtin", cmd);
         } else {
             match self.find_executable(cmd) {
@@ -90,8 +98,8 @@ impl Shell {
         }
     }
 
-    fn execute(&self, cmd: &str, args: &[&str]) {
-        match self.find_executable(cmd) {
+    fn execute(&self, cmd: &str, args: &[String]) {
+        match self.find_executable(&cmd.to_string()) {
             None => println!("{}: command not found", cmd),
             Some(_) => {
                 Command::new(cmd)
@@ -109,7 +117,7 @@ impl Shell {
         }
     }
 
-    fn cd(args: &[&str]) {
+    fn cd(args: &[String]) {
         if args.is_empty() {
             let home = env::var("HOME");
             if let Ok(home) = home {
@@ -126,20 +134,54 @@ impl Shell {
             return;
         }
 
-        let path = PathBuf::from(expand_tilde(args[0]));
+        let path = PathBuf::from(expand_tilde(&args[0]));
         if env::set_current_dir(&path).is_err() {
             eprintln!("cd: {}: No such file or directory", path.display());
         }
     }
 }
 
-fn expand_tilde(path: &str) -> String {
+fn expand_tilde(path: &String) -> String {
     if path.starts_with('~') {
         let home = env::var("HOME").unwrap_or_default();
         format!("{}{}", home, &path.strip_prefix('~').unwrap_or_default())
     } else {
         path.to_string()
     }
+}
+
+fn parse_args(args: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut token = String::new();
+    let mut chars = args.chars().peekable();
+    let mut is_in_quote = false;
+    while let Some(&ch) = chars.peek() {
+        match ch {
+            '\'' => {
+                chars.next();
+                is_in_quote = !is_in_quote;
+            }
+            ' ' | '\t' => {
+                chars.next();
+                if is_in_quote {
+                    token.push(ch);
+                } else if !token.is_empty() {
+                    tokens.push(token.clone());
+                    token.clear();
+                }
+            }
+            _ => {
+                token.push(ch);
+                chars.next();
+            }
+        }
+    }
+
+    if !token.is_empty() {
+        tokens.push(token);
+    }
+
+    tokens
 }
 
 fn main() {
