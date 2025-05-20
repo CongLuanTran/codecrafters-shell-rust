@@ -36,7 +36,15 @@ impl Shell {
             // Empty the input
             self.input.clear();
             // Wait for user input
-            io::stdin().read_line(&mut self.input).unwrap();
+            if io::stdin().read_line(&mut self.input).is_err() {
+                eprintln!("Error reading input");
+                continue;
+            };
+
+            if self.input.trim().is_empty() {
+                continue;
+            }
+
             let parts = self.input.split_once(" ");
             let (cmd, args) = match parts {
                 None => (self.input.as_str(), None),
@@ -60,7 +68,7 @@ impl Shell {
         }
     }
 
-    fn find_executable(&self, cmd: &String) -> Option<PathBuf> {
+    fn find_executable(&self, cmd: &str) -> Option<PathBuf> {
         for dir in &self.path_dirs {
             let full_path = dir.join(cmd);
             if full_path.is_file() && full_path.is_executable() {
@@ -87,6 +95,10 @@ impl Shell {
     }
 
     fn type_of(&self, args: &[String]) {
+        if args.is_empty() {
+            eprintln!("type: missing argument");
+            return;
+        }
         let cmd = &args[0];
         if self.builtin.iter().any(|&builtin| builtin == cmd) {
             println!("{} is a shell builtin", cmd);
@@ -99,7 +111,7 @@ impl Shell {
     }
 
     fn execute(&self, cmd: &str, args: &[String]) {
-        match self.find_executable(&cmd.to_string()) {
+        match self.find_executable(cmd) {
             None => println!("{}: command not found", cmd),
             Some(_) => {
                 Command::new(cmd)
@@ -118,30 +130,28 @@ impl Shell {
     }
 
     fn cd(args: &[String]) {
-        if args.is_empty() {
-            let home = env::var("HOME");
-            if let Ok(home) = home {
-                if env::set_current_dir(&home).is_err() {
-                    eprintln!("cd: {}: No such file or directory", home);
+        let target = if args.is_empty() {
+            match env::var("HOME") {
+                Ok(home) => home,
+                Err(_) => {
+                    eprintln!("cd: HOME not set");
+                    return;
                 }
-            } else {
-                eprintln!("cd: HOME not set");
             }
-        }
-
-        if args.len() > 1 {
+        } else if args.len() > 1 {
             eprintln!("cd: too many arguments");
             return;
-        }
-
-        let path = PathBuf::from(expand_tilde(&args[0]));
+        } else {
+            expand_tilde(&args[0])
+        };
+        let path = PathBuf::from(&target);
         if env::set_current_dir(&path).is_err() {
             eprintln!("cd: {}: No such file or directory", path.display());
         }
     }
 }
 
-fn expand_tilde(path: &String) -> String {
+fn expand_tilde(path: &str) -> String {
     if path.starts_with('~') {
         let home = env::var("HOME").unwrap_or_default();
         format!("{}{}", home, &path.strip_prefix('~').unwrap_or_default())
@@ -151,41 +161,34 @@ fn expand_tilde(path: &String) -> String {
 }
 
 fn parse_args(args: &str) -> Vec<String> {
-    let special_chars = ['\\', '$', '"'];
     let mut tokens = Vec::new();
     let mut token = String::new();
-    let mut chars = args.chars().peekable();
+    let chars = args.chars();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
-    let mut has_backslash = false;
-    while let Some(&ch) = chars.peek() {
-        match ch {
-            '\'' if !in_double_quotes => {
-                chars.next();
-                in_single_quotes = !in_single_quotes;
+    let mut escape = false;
+    for ch in chars {
+        if escape {
+            if in_double_quotes && !matches!(ch, '\\' | '"' | '$') {
+                token.push('\\');
             }
-            '\\' if in_double_quotes && !has_backslash => {
-                chars.next();
-                has_backslash = true;
-            }
-            '"' if !in_single_quotes && !has_backslash => {
-                chars.next();
-                in_double_quotes = !in_double_quotes;
-            }
-            ' ' | '\t' if !(in_double_quotes || in_single_quotes) => {
-                chars.next();
-                if !token.is_empty() {
-                    tokens.push(token.clone());
-                    token.clear();
+            token.push(ch);
+            escape = false;
+        } else {
+            match ch {
+                '\\' if in_single_quotes => token.push('\\'),
+                '\\' => escape = true,
+                '\'' if !in_double_quotes => in_single_quotes = !in_single_quotes,
+                '"' if !in_single_quotes => in_double_quotes = !in_double_quotes,
+                ' ' | '\t' if !(in_double_quotes || in_single_quotes) => {
+                    if !token.is_empty() {
+                        tokens.push(token.clone());
+                        token.clear();
+                    }
                 }
-            }
-            _ => {
-                if has_backslash && in_double_quotes && !special_chars.contains(&ch) {
-                    token.push('\\')
+                _ => {
+                    token.push(ch);
                 }
-                token.push(ch);
-                chars.next();
-                has_backslash = false;
             }
         }
     }
