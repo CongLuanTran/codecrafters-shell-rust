@@ -151,28 +151,41 @@ fn expand_tilde(path: &String) -> String {
 }
 
 fn parse_args(args: &str) -> Vec<String> {
+    let special_chars = ['\\', '$', '"'];
     let mut tokens = Vec::new();
     let mut token = String::new();
     let mut chars = args.chars().peekable();
-    let mut is_in_quote = false;
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
+    let mut has_backslash = false;
     while let Some(&ch) = chars.peek() {
         match ch {
-            '\'' => {
+            '\'' if !in_double_quotes => {
                 chars.next();
-                is_in_quote = !is_in_quote;
+                in_single_quotes = !in_single_quotes;
             }
-            ' ' | '\t' => {
+            '\\' if in_double_quotes && !has_backslash => {
                 chars.next();
-                if is_in_quote {
-                    token.push(ch);
-                } else if !token.is_empty() {
+                has_backslash = true;
+            }
+            '"' if !in_single_quotes && !has_backslash => {
+                chars.next();
+                in_double_quotes = !in_double_quotes;
+            }
+            ' ' | '\t' if !(in_double_quotes || in_single_quotes) => {
+                chars.next();
+                if !token.is_empty() {
                     tokens.push(token.clone());
                     token.clear();
                 }
             }
             _ => {
+                if has_backslash && in_double_quotes && !special_chars.contains(&ch) {
+                    token.push('\\')
+                }
                 token.push(ch);
                 chars.next();
+                has_backslash = false;
             }
         }
     }
