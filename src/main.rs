@@ -41,23 +41,17 @@ impl Shell {
                 continue;
             };
 
-            if self.input.trim().is_empty() {
+            self.input = self.input.trim().to_string();
+            if self.input.is_empty() {
                 continue;
             }
 
-            let parts = self.input.split_once(" ");
-            let (cmd, args) = match parts {
-                None => (self.input.as_str(), None),
-                Some((cmd, args)) => {
-                    let args = args.trim();
-                    let args = parse_args(args);
-                    (cmd, Some(args))
-                }
+            let parts = parse_args(&self.input);
+            let Some(cmd) = parts.first() else {
+                continue;
             };
-
-            let cmd = cmd.trim();
-            let args = &args.unwrap_or_default();
-            match cmd {
+            let args = &parts[1..];
+            match cmd.as_str() {
                 "echo" => Shell::echo(args),
                 "exit" => Shell::exit(args),
                 "type" => self.type_of(args),
