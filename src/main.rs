@@ -1,6 +1,10 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
 
+mod ast;
+mod builtins;
+mod parser;
+
 fn main() {
     // Uncomment this block to pass the first stage
     print!("$ ");
