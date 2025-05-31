@@ -26,10 +26,7 @@ fn main() {
         match readline {
             Ok(input) => {
                 if let Ok(pipeline) = parse_pipeline(&input) {
-                    // Successfully parsed the pipeline
-                    for segment in pipeline.segments {
-                        shell.run_command(segment);
-                    }
+                    shell.run_pipeline(pipeline);
                 } else {
                     eprintln!("Error: Failed to parse pipeline");
                 }

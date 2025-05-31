@@ -5,10 +5,11 @@ use std::{
     io::Write,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    process::{Command, Stdio},
 };
 
 use crate::{
-    ast::{apply_redirection, CommandSegment, Redirection},
+    ast::{apply_redirection, CommandSegment, Pipeline, Redirection},
     completer::ShellCompleter,
 };
 
@@ -178,6 +179,56 @@ impl Shell {
             self.run_builtin(command);
         } else {
             self.run_executable(command);
+        }
+    }
+
+    pub fn run_pipeline(&self, pipeline: Pipeline) {
+        let mut processes = Vec::new();
+        let mut prev_stdout = None;
+        let mut segments = pipeline.segments.into_iter().peekable();
+
+        while let Some(segment) = segments.next() {
+            let mut cmd = if self.builtins.contains(segment.cmd.as_str()) {
+                eprintln!("Pipelining builtins is not supported yet.");
+                return;
+            } else {
+                let mut c = Command::new(&segment.cmd);
+                c.args(&segment.args);
+
+                if let Some(stdout) = prev_stdout.take() {
+                    c.stdin(stdout);
+                }
+
+                if !segments.peek().is_none() {
+                    c.stdout(Stdio::piped());
+                }
+
+                if let Err(e) = apply_redirection(&mut c, &segment.redirections) {
+                    eprintln!("Redirection error: {}", e);
+                }
+
+                c
+            };
+
+            let mut child = match cmd.spawn() {
+                Ok(child) => child,
+                Err(e) => {
+                    eprintln!("Failed to spawn {}: {}", segment.cmd, e);
+                    return;
+                }
+            };
+
+            prev_stdout = if !segments.peek().is_none() {
+                Some(child.stdout.take().unwrap())
+            } else {
+                None
+            };
+
+            processes.push(child);
+        }
+
+        for mut child in processes {
+            let _ = child.wait();
         }
     }
 
