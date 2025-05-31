@@ -5,34 +5,11 @@ use std::{
     io::Write,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
 };
 
-use crate::{
-    ast::{apply_redirection, CommandSegment, Pipeline, Redirection},
-    completer::ShellCompleter,
-};
+use crate::{ast::Redirection, completer::ShellCompleter};
 
-macro_rules! write_or_stdout {
-    ($file_opt:expr, $($arg:tt)*) => {
-        if let Some(file) = $file_opt.as_mut() {
-            writeln!(file, $($arg)*).unwrap();
-        } else {
-            println!($($arg)*);
-        }
-    };
-}
-
-macro_rules! write_or_stderr  {
-    ($file_opt:expr, $($arg:tt)*) => {
-        if let Some(file) = $file_opt.as_mut() {
-            writeln!(file, $($arg)*).unwrap();
-        } else {
-            eprintln!($($arg)*);
-        }
-    };
-}
-
+#[derive(Clone)]
 pub struct Shell {
     builtins: HashSet<&'static str>,
     path: Option<String>,
@@ -51,7 +28,7 @@ impl Shell {
         }
     }
 
-    fn builtin_redirection(redirs: &[Redirection]) -> (Option<File>, Option<File>) {
+    pub fn builtin_redirection(redirs: &[Redirection]) -> (Option<File>, Option<File>) {
         let mut output = None;
         let mut error = None;
 
@@ -84,26 +61,30 @@ impl Shell {
         (output, error)
     }
 
-    fn exit(args: Vec<String>) {
+    pub fn exit(args: Vec<String>) {
         if args.is_empty() {
             std::process::exit(0)
         }
         std::process::exit(args[0].parse::<i32>().unwrap_or(0));
     }
 
-    fn echo(args: Vec<String>, mut output: Option<File>) {
-        write_or_stdout!(output, "{}", args.join(" "));
+    pub fn echo(args: Vec<String>, mut output: Box<dyn Write>) {
+        writeln!(output, "{}", args.join(" ")).unwrap_or_else(|_| {
+            eprintln!("Failed to write to output");
+        });
     }
 
-    fn pwd(mut output: Option<File>) {
+    pub fn pwd(mut output: Box<dyn Write>) {
         if let Ok(current_dir) = std::env::current_dir() {
             if let Some(path) = current_dir.to_str() {
-                write_or_stdout!(output, "{}", path);
+                writeln!(output, "{}", path).unwrap_or_else(|_| {
+                    eprintln!("Failed to write to output");
+                });
             }
         }
     }
 
-    fn cd(args: Vec<String>, mut error: Option<File>) {
+    pub fn cd(args: Vec<String>, mut error: Box<dyn Write>) {
         if args.is_empty() {
             std::env::set_current_dir(std::env::home_dir().unwrap()).unwrap();
             return;
@@ -112,21 +93,35 @@ impl Shell {
         let target_dir = args[0].replace("~", std::env::home_dir().unwrap().to_str().unwrap_or(""));
 
         if std::env::set_current_dir(&target_dir).is_err() {
-            write_or_stderr!(error, "cd: {}: No such file or directory", target_dir);
+            writeln!(error, "cd: {}: No such file or directory", target_dir).unwrap_or_else(|_| {
+                eprintln!("Failed to write to error output");
+            });
         }
     }
 
-    fn type_of(&self, args: Vec<String>, mut output: Option<File>, mut error: Option<File>) {
+    pub fn type_of(
+        &self,
+        args: Vec<String>,
+        mut output: Box<dyn Write>,
+        mut error: Box<dyn Write>,
+    ) {
         for cmd in args {
             match cmd.as_str() {
-                b if self.builtins.contains(&b) => {
-                    write_or_stdout!(output, "{} is a shell builtin", b)
-                }
+                b if self.builtins.contains(&b) => writeln!(output, "{} is a shell builtin", b)
+                    .unwrap_or_else(|_| {
+                        eprintln!("Failed to write to output");
+                    }),
                 o => match self.find_executable(o) {
-                    Some(path) => write_or_stdout!(output, "{} is {}", o, path.display()),
-                    None => write_or_stderr!(error, "{}: not found", o),
+                    Some(path) => {
+                        writeln!(output, "{} is {}", o, path.display()).unwrap_or_else(|_| {
+                            eprintln!("Failed to write to output");
+                        })
+                    }
+                    None => writeln!(error, "{}: not found", o).unwrap_or_else(|_| {
+                        eprintln!("Failed to write to error output");
+                    }),
                 },
-            }
+            };
         }
     }
 
@@ -150,89 +145,8 @@ impl Shell {
         None
     }
 
-    fn run_builtin(&self, command: CommandSegment) {
-        let (output, mut error) = Self::builtin_redirection(&command.redirections);
-        match command.cmd.as_str() {
-            "exit" => Self::exit(command.args),
-            "echo" => Self::echo(command.args, output),
-            "pwd" => Self::pwd(output),
-            "cd" => Self::cd(command.args, error),
-            "type" => self.type_of(command.args, output, error),
-            _ => write_or_stderr!(error, "{}: command not found", command.cmd),
-        }
-    }
-
-    // fn run_executable(&self, command: CommandSegment) {
-    //     let (_, mut error) = Self::builtin_redirection(&command.redirections);
-    //     if let Some(path) = self.find_executable(&command.cmd) {
-    //         let excutable = path.file_name().unwrap();
-    //         let mut cmd = std::process::Command::new(excutable);
-    //         cmd.args(command.args);
-    //         if let Err(e) = apply_redirection(&mut cmd, &command.redirections) {
-    //             eprintln!("Redirection error: {}", e);
-    //         }
-    //         cmd.status().expect("command cannot be executed");
-    //     } else {
-    //         write_or_stderr!(error, "{}: commnand not found", command.cmd);
-    //     }
-    // }
-
-    // pub fn run_command(&self, command: CommandSegment) {
-    //     if self.builtins.contains(command.cmd.as_str()) {
-    //         self.run_builtin(command);
-    //     } else {
-    //         self.run_executable(command);
-    //     }
-    // }
-
-    pub fn run_pipeline(&self, pipeline: Pipeline) {
-        let mut processes = Vec::new();
-        let mut prev_stdout = None;
-        let mut segments = pipeline.segments.into_iter().peekable();
-
-        while let Some(segment) = segments.next() {
-            let mut cmd = if self.builtins.contains(segment.cmd.as_str()) {
-                self.run_builtin(segment);
-                return;
-            } else {
-                let mut c = Command::new(&segment.cmd);
-                c.args(&segment.args);
-
-                if let Some(stdout) = prev_stdout.take() {
-                    c.stdin(stdout);
-                }
-
-                if segments.peek().is_some() {
-                    c.stdout(Stdio::piped());
-                }
-
-                if let Err(e) = apply_redirection(&mut c, &segment.redirections) {
-                    eprintln!("Redirection error: {}", e);
-                }
-
-                c
-            };
-
-            let mut child = match cmd.spawn() {
-                Ok(child) => child,
-                Err(_) => {
-                    eprintln!("{}: command not found", segment.cmd);
-                    return;
-                }
-            };
-
-            prev_stdout = if segments.peek().is_some() {
-                Some(child.stdout.take().unwrap())
-            } else {
-                None
-            };
-
-            processes.push(child);
-        }
-
-        for mut child in processes {
-            let _ = child.wait();
-        }
+    pub fn is_builtin(&self, cmd: &str) -> bool {
+        self.builtins.contains(cmd)
     }
 
     fn collect_path_executables(&self) -> HashSet<String> {
