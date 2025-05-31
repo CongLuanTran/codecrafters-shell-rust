@@ -22,7 +22,7 @@ fn main() {
         if let Ok(pipeline) = parse_pipeline(&input) {
             // Successfully parsed the pipeline
             for segment in pipeline.segments {
-                shell.run_command(&segment.cmd, segment.args);
+                shell.run_command(segment);
             }
         } else {
             eprintln!("Error: Failed to parse pipeline");
