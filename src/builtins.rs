@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     env,
     fs::{self, File, OpenOptions},
-    io::{self, Write},
+    io::Write,
     path::PathBuf,
 };
 
@@ -99,17 +99,14 @@ impl Shell {
     }
 
     fn cd(args: Vec<String>, mut error: Option<File>) {
-        let target_dir = if args.is_empty() || args[0] == "~" {
-            if let Some(home) = env::var_os("HOME") {
-                &home.into_string().unwrap_or_else(|_| String::from("/"))
-            } else {
-                write_or_stderr!(error, "Error: HOME environment variable not set");
-                return;
-            }
-        } else {
-            &args[0]
-        };
-        if let Err(_) = std::env::set_current_dir(target_dir) {
+        if args.is_empty() {
+            std::env::set_current_dir(std::env::home_dir().unwrap()).unwrap();
+            return;
+        }
+
+        let target_dir = args[0].replace("~", std::env::home_dir().unwrap().to_str().unwrap_or(""));
+
+        if let Err(_) = std::env::set_current_dir(&target_dir) {
             write_or_stderr!(error, "cd: {}: No such file or directory", target_dir);
         }
     }
