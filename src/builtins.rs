@@ -3,10 +3,14 @@ use std::{
     env,
     fs::{self, File, OpenOptions},
     io::Write,
-    path::PathBuf,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
 };
 
-use crate::ast::{apply_redirection, CommandSegment, Redirection};
+use crate::{
+    ast::{apply_redirection, CommandSegment, Redirection},
+    completer::ShellCompleter,
+};
 
 macro_rules! write_or_stdout {
     ($file_opt:expr, $($arg:tt)*) => {
@@ -175,5 +179,40 @@ impl Shell {
         } else {
             self.run_executable(command);
         }
+    }
+
+    fn collect_path_executables(&self) -> HashSet<String> {
+        let mut executables = HashSet::new();
+        if let Some(path) = &self.path {
+            for dir in env::split_paths(&path) {
+                if let Ok(entries) = fs::read_dir(&dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() && is_executable(&path.as_path()) {
+                            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                                executables.insert(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        executables
+    }
+
+    pub fn initialize_completer(&self) -> ShellCompleter {
+        let mut commands: HashSet<String> = self.builtins.iter().map(|s| s.to_string()).collect();
+        let executables = self.collect_path_executables();
+        commands.extend(executables);
+        ShellCompleter::new(commands)
+    }
+}
+
+fn is_executable(path: &Path) -> bool {
+    if let Ok(metadata) = path.metadata() {
+        let perm = metadata.permissions();
+        perm.mode() & 0o111 != 0
+    } else {
+        false
     }
 }
