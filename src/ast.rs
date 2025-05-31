@@ -45,7 +45,7 @@ pub fn apply_redirection(cmd: &mut Command, redirs: &[Redirection]) -> std::io::
             }
             Redirection::StderrAppend(path) => {
                 let file = OpenOptions::new().append(true).create(true).open(path)?;
-                cmd.stdout(file);
+                cmd.stderr(file);
             }
             Redirection::Stdin(path) => {
                 let file = File::open(path)?;

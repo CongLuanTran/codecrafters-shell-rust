@@ -1,5 +1,4 @@
 #![allow(unused)]
-use shellwords;
 
 use crate::ast::{CommandLine, CommandSegment, Pipeline, Redirection};
 
