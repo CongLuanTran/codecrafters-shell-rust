@@ -97,7 +97,6 @@ fn main() {
                                 Ok(child) => processes.push(child),
                                 Err(_) => {
                                     eprintln!("{}: command not found", segment.cmd);
-                                    return;
                                 }
                             }
                             prev_reader = reader;
