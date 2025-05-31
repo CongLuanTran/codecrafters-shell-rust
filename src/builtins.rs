@@ -215,8 +215,8 @@ impl Shell {
 
             let mut child = match cmd.spawn() {
                 Ok(child) => child,
-                Err(e) => {
-                    eprintln!("Failed to spawn {}: {}", segment.cmd, e);
+                Err(_) => {
+                    eprintln!("{}: command not found", segment.cmd);
                     return;
                 }
             };
