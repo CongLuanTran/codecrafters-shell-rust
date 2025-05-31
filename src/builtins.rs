@@ -111,7 +111,7 @@ impl Shell {
 
         let target_dir = args[0].replace("~", std::env::home_dir().unwrap().to_str().unwrap_or(""));
 
-        if let Err(_) = std::env::set_current_dir(&target_dir) {
+        if std::env::set_current_dir(&target_dir).is_err() {
             write_or_stderr!(error, "cd: {}: No such file or directory", target_dir);
         }
     }
@@ -135,10 +135,13 @@ impl Shell {
             for dir in env::split_paths(path) {
                 if let Ok(full_path) = fs::read_dir(&dir) {
                     for entry in full_path {
-                        if let Ok(entry) = entry {
-                            if entry.file_name() == cmd && entry.path().is_file() {
-                                return Some(entry.path());
-                            }
+                        let Ok(entry) = entry else { continue };
+                        let path = entry.path();
+                        if entry.file_name() == cmd
+                            && path.is_file()
+                            && is_executable(path.as_path())
+                        {
+                            return Some(entry.path());
                         }
                     }
                 }
@@ -159,28 +162,28 @@ impl Shell {
         }
     }
 
-    fn run_executable(&self, command: CommandSegment) {
-        let (_, mut error) = Self::builtin_redirection(&command.redirections);
-        if let Some(path) = self.find_executable(&command.cmd) {
-            let excutable = path.file_name().unwrap();
-            let mut cmd = std::process::Command::new(excutable);
-            cmd.args(command.args);
-            if let Err(e) = apply_redirection(&mut cmd, &command.redirections) {
-                eprintln!("Redirection error: {}", e);
-            }
-            cmd.status().expect("command cannot be executed");
-        } else {
-            write_or_stderr!(error, "{}: commnand not found", command.cmd);
-        }
-    }
+    // fn run_executable(&self, command: CommandSegment) {
+    //     let (_, mut error) = Self::builtin_redirection(&command.redirections);
+    //     if let Some(path) = self.find_executable(&command.cmd) {
+    //         let excutable = path.file_name().unwrap();
+    //         let mut cmd = std::process::Command::new(excutable);
+    //         cmd.args(command.args);
+    //         if let Err(e) = apply_redirection(&mut cmd, &command.redirections) {
+    //             eprintln!("Redirection error: {}", e);
+    //         }
+    //         cmd.status().expect("command cannot be executed");
+    //     } else {
+    //         write_or_stderr!(error, "{}: commnand not found", command.cmd);
+    //     }
+    // }
 
-    pub fn run_command(&self, command: CommandSegment) {
-        if self.builtins.contains(command.cmd.as_str()) {
-            self.run_builtin(command);
-        } else {
-            self.run_executable(command);
-        }
-    }
+    // pub fn run_command(&self, command: CommandSegment) {
+    //     if self.builtins.contains(command.cmd.as_str()) {
+    //         self.run_builtin(command);
+    //     } else {
+    //         self.run_executable(command);
+    //     }
+    // }
 
     pub fn run_pipeline(&self, pipeline: Pipeline) {
         let mut processes = Vec::new();
@@ -189,7 +192,7 @@ impl Shell {
 
         while let Some(segment) = segments.next() {
             let mut cmd = if self.builtins.contains(segment.cmd.as_str()) {
-                eprintln!("Pipelining builtins is not supported yet.");
+                self.run_builtin(segment);
                 return;
             } else {
                 let mut c = Command::new(&segment.cmd);
@@ -199,7 +202,7 @@ impl Shell {
                     c.stdin(stdout);
                 }
 
-                if !segments.peek().is_none() {
+                if segments.peek().is_some() {
                     c.stdout(Stdio::piped());
                 }
 
@@ -218,7 +221,7 @@ impl Shell {
                 }
             };
 
-            prev_stdout = if !segments.peek().is_none() {
+            prev_stdout = if segments.peek().is_some() {
                 Some(child.stdout.take().unwrap())
             } else {
                 None
@@ -239,7 +242,7 @@ impl Shell {
                 if let Ok(entries) = fs::read_dir(&dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
-                        if path.is_file() && is_executable(&path.as_path()) {
+                        if path.is_file() && is_executable(path.as_path()) {
                             if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
                                 executables.insert(name.to_string());
                             }
