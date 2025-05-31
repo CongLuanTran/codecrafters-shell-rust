@@ -3,7 +3,7 @@ use shellwords;
 
 use crate::ast::{CommandLine, CommandSegment, Pipeline, Redirection};
 
-pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
+fn tokenize(input: &str) -> Result<Vec<String>, String> {
     shellwords::split(input).map_err(|e| e.to_string())
 }
 
@@ -30,7 +30,7 @@ pub fn tokenize(input: &str) -> Result<Vec<String>, String> {
 //     Ok(CommandLine { pipelines })
 // }
 
-pub fn parse_command_segment(tokens: &[String]) -> Result<CommandSegment, String> {
+fn parse_command_segment(tokens: &[String]) -> Result<CommandSegment, String> {
     if tokens.is_empty() {
         return Err("No tokens provided".to_string());
     }
