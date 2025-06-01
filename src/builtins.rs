@@ -17,7 +17,7 @@ pub struct Shell {
 
 impl Shell {
     pub fn new() -> Self {
-        let builtins: HashSet<&'static str> = ["exit", "echo", "pwd", "cd", "type"]
+        let builtins: HashSet<&'static str> = ["exit", "echo", "pwd", "cd", "type", "history"]
             .iter()
             .cloned()
             .collect();
@@ -86,11 +86,11 @@ impl Shell {
 
     pub fn cd(args: Vec<String>, mut error: Box<dyn Write>) {
         if args.is_empty() {
-            std::env::set_current_dir(std::env::home_dir().unwrap()).unwrap();
+            std::env::set_current_dir(dirs::home_dir().unwrap()).unwrap();
             return;
         }
 
-        let target_dir = args[0].replace("~", std::env::home_dir().unwrap().to_str().unwrap_or(""));
+        let target_dir = args[0].replace("~", dirs::home_dir().unwrap().to_str().unwrap_or(""));
 
         if std::env::set_current_dir(&target_dir).is_err() {
             writeln!(error, "cd: {}: No such file or directory", target_dir).unwrap_or_else(|_| {
@@ -122,6 +122,18 @@ impl Shell {
                     }),
                 },
             };
+        }
+    }
+
+    pub fn history(args: Vec<String>, history: &[String], mut output: Box<dyn Write>) {
+        let skip = if args.is_empty() {
+            0
+        } else {
+            args[0].parse().unwrap_or_default()
+        };
+        for (idx, entry) in history.iter().skip(skip).enumerate() {
+            writeln!(output, "{} {}", idx + 1, entry)
+                .unwrap_or_else(|_| eprintln!("Failed to write to error output"));
         }
     }
 

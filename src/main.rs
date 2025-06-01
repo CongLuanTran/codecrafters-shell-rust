@@ -19,6 +19,7 @@ fn main() {
 
     let config = Config::builder()
         .completion_type(CompletionType::List)
+        .auto_add_history(true)
         .build();
     let h = MyHelper { completer };
     let mut rl = Editor::with_config(config).unwrap();
@@ -52,6 +53,9 @@ fn main() {
                             let (outfile, errfile) =
                                 Shell::builtin_redirection(&segment.redirections);
                             let shell_clone = shell.clone();
+                            let history: Vec<String> =
+                                rl.history().iter().map(|s| s.to_string()).collect();
+
                             let handle = std::thread::spawn(move || {
                                 let out: Box<dyn Write> = if let Some(file) = outfile {
                                     Box::new(file)
@@ -71,6 +75,7 @@ fn main() {
                                     "pwd" => Shell::pwd(out),
                                     "cd" => Shell::cd(args, error),
                                     "type" => shell_clone.type_of(args, out, error),
+                                    "history" => Shell::history(args, &history, out),
                                     _ => writeln!(error, "{}: command not found", segment.cmd)
                                         .unwrap(),
                                 }
