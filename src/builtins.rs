@@ -126,13 +126,14 @@ impl Shell {
     }
 
     pub fn history(args: Vec<String>, history: &[String], mut output: Box<dyn Write>) {
-        let skip = if args.is_empty() {
-            0
+        let len = history.len();
+        let start = if !args.is_empty() {
+            len.saturating_sub(args[0].parse::<usize>().unwrap_or_default())
         } else {
-            args[0].parse().unwrap_or_default()
+            0
         };
-        for (idx, entry) in history.iter().skip(skip).enumerate() {
-            writeln!(output, "{} {}", idx + 1, entry)
+        for (idx, entry) in history[start..].iter().enumerate() {
+            writeln!(output, "{} {}", idx + start + 1, entry)
                 .unwrap_or_else(|_| eprintln!("Failed to write to error output"));
         }
     }
