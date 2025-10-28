@@ -126,9 +126,10 @@ impl Shell {
     }
 
     pub fn history(args: Vec<String>, history: &[String], mut output: Box<dyn Write>) {
-        let len = history.len();
         let start = if !args.is_empty() {
-            len.saturating_sub(args[0].parse::<usize>().unwrap_or_default())
+            history
+                .len()
+                .saturating_sub(args[0].parse::<usize>().unwrap_or_default())
         } else {
             0
         };
